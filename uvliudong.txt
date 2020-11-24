@@ -1,0 +1,64 @@
+function update( event ) {this.material.uniforms.time.value = event.time / 500.0;}
+
+this.material.uniforms.diffuse2.value = new THREE.TextureLoader().load("https://vr-resources.oss-cn-shenzhen.aliyuncs.com/shader_texture/xxxxx.png",(t) =>  {
+         t.wrapS=t.wrapT = THREE.RepeatWrapping ;
+	    this.material.needsUpdate=true;
+        t.needsUpdate=true;
+});
+
+{
+	"defines": {},
+	"uniforms": {
+		"time": {
+			"value": 0
+		},
+		"diffuse2": {
+			"value": null
+		}
+	}
+}
+
+
+uniform mat4 projectionMatrix;
+uniform mat4 modelViewMatrix;
+
+attribute vec3 position;
+uniform float time;
+varying vec2 vUv;
+attribute vec2 uv;
+varying vec3 vPosition;
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+void main() {
+	
+		vPosition = position;
+	
+	vUv= uv;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+}
+
+
+uniform sampler2D diffuse2;
+precision highp float;
+varying vec2 vUv;
+varying vec3 vPosition;
+uniform float time;
+
+
+void main() {
+	
+	
+
+
+     vec2 offset1 = vec2 ((vUv.x ) ,(vUv.y + time *0.1));
+	 vec4 colorTex2 = texture2D (diffuse2,-offset1);
+
+	vec4 b_color = colorTex2 * ((cos(time * 2.0) + 3.0) / 1.1);
+	
+    gl_FragColor = colorTex2 ;//+ b_color;  
+}
+

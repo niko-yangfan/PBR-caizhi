@@ -1,0 +1,40 @@
+function update( event ) {this.material.uniforms.time.value = event.time / 500.0;}
+
+
+{
+	"defines": {},
+	"uniforms": {
+		"time": {
+			"value": 0
+		}
+	}
+}
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform mat4 projectionMatrix;
+uniform mat4 modelViewMatrix;
+
+attribute vec3 position;
+uniform float time;
+
+void main() {
+	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+}
+
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform float time;
+void main() {
+	vec4 pop = vec4( 0.5, 0.5,0.5, 0.0 );
+	
+	vec4 b_color = pop * ((cos(time * 2.0) + 3.0) / 1.1);//功能的重点
+	
+	gl_FragColor = pop *b_color;
+	
+}
