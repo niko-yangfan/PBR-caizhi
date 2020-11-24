@@ -1,0 +1,207 @@
+import * as THREE from 'three';
+
+export class TerrainMaterial extends THREE.ShaderMaterial {
+
+    public constructor() {
+
+        super({
+            uniforms: THREE.UniformsUtils.merge([
+                THREE.UniformsLib.fog,
+                THREE.UniformsLib.lights,
+                {
+                    diffuse: { value: new THREE.Color(0xeeeeee) },
+                    opacity: { value: 1.0 },
+                    emissive: { value: new THREE.Color(0x000000) },
+                    specular: { value: new THREE.Color(0x111111) },
+                    shininess: { value: 0 },
+
+                    offsetRepeat: { value: new THREE.Vector4(0, 0, 1, 1) },
+
+                    map1: { value: null },
+                    map2: { value: null },
+                    map3: { value: null },
+                    map1Normal: { value: null },
+                    map2Normal: { value: null },
+                    map3Normal: { value: null },
+                    map1HeightRange: { value: 0 },
+                    map2HeightRange: { value: 0 },
+                    map3HeightRange: { value: 0 }
+                }
+            ]),
+            vertexShader: [
+                'varying vec3 vNormal;',
+                'varying vec3 vViewPosition;',
+                'varying vec3 fPosition;',
+
+                'varying vec2 vUv;',
+                'uniform vec4 offsetRepeat;',
+
+                THREE.ShaderChunk.shadowmap_pars_vertex,
+                // THREE.ShaderChunk.logdepthbuf_pars_vertex,
+                THREE.ShaderChunk.fog_pars_vertex,
+
+                'void main(){',
+                THREE.ShaderChunk.beginnormal_vertex,
+                THREE.ShaderChunk.defaultnormal_vertex,
+                'vUv = uv * offsetRepeat.zw + offsetRepeat.xy;',
+                'vNormal = normalize( transformedNormal );',
+                THREE.ShaderChunk.begin_vertex,
+                THREE.ShaderChunk.project_vertex,
+                // THREE.ShaderChunk.logdepthbuf_vertex,
+                'fPosition = position;',
+                'vViewPosition = - mvPosition.xyz;',
+                THREE.ShaderChunk.worldpos_vertex,
+                THREE.ShaderChunk.shadowmap_vertex,
+                THREE.ShaderChunk.fog_vertex,
+                '}'
+            ].join('\n'),
+            fragmentShader: [
+                'uniform vec3 diffuse;',
+                'uniform vec3 emissive;',
+                'uniform vec3 specular;',
+                'uniform float shininess;',
+                'uniform float opacity;',
+
+                'uniform sampler2D map1;',
+                'uniform sampler2D map2;',
+                'uniform sampler2D map3;',
+                'uniform sampler2D map1Normal;',
+                'uniform sampler2D map2Normal;',
+                'uniform sampler2D map3Normal;',
+                'uniform float map1HeightRange;',
+                'uniform float map2HeightRange;',
+                'uniform float map3HeightRange;',
+
+                'varying vec2 vUv;',
+                'varying vec3 fPosition;',
+
+                THREE.ShaderChunk.common,
+                THREE.ShaderChunk.packing,
+                THREE.ShaderChunk.dithering_pars_fragment,
+                THREE.ShaderChunk.emissivemap_pars_fragment,
+                THREE.ShaderChunk.fog_pars_fragment,
+                THREE.ShaderChunk.bsdfs,
+                THREE.ShaderChunk.lights_pars,
+                THREE.ShaderChunk.lights_phong_pars_fragment,
+                THREE.ShaderChunk.shadowmap_pars_fragment,
+                THREE.ShaderChunk.specularmap_pars_fragment,
+                // THREE.ShaderChunk.logdepthbuf_pars_fragment,
+                'vec3 perturbNormal2Arb( vec3 normalColor, vec3 eye_pos, vec3 surf_norm ) {',
+                'vec3 q0 = vec3( dFdx( eye_pos.x ), dFdx( eye_pos.y ), dFdx( eye_pos.z ) );',
+                'vec3 q1 = vec3( dFdy( eye_pos.x ), dFdy( eye_pos.y ), dFdy( eye_pos.z ) );',
+                'vec2 st0 = dFdx( vUv.st );',
+                'vec2 st1 = dFdy( vUv.st );',
+                'vec3 S = normalize( q0 * st1.t - q1 * st0.t );',
+                'vec3 T = normalize( -q0 * st1.s + q1 * st0.s );',
+                'vec3 N = normalize( surf_norm );',
+                'vec3 mapN = normalColor * 2.0 - 1.0;',
+                // "mapN.xy = normalScale * mapN.xy;",
+                'mat3 tsn = mat3( S, T, N );',
+                'return normalize( tsn * mapN );',
+                '}',
+                'void main(){',
+                'vec4 diffuseColor = vec4( diffuse, opacity );',
+                'ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );',
+                'vec3 totalEmissiveRadiance = emissive;',
+                // THREE.ShaderChunk.logdepthbuf_fragment,
+
+                'vec3 texel;',
+                'vec3 texelNormal;',
+                'float amount;',
+
+                // need to optimize here, let's say remove if else if else?
+                'if(fPosition.y < map1HeightRange){',
+                'texel = texture2D(map1, vUv).rgb;',
+                'texelNormal = texture2D(map1Normal, vUv).rgb;',
+                '}',
+                'else if(fPosition.y < map2HeightRange){',
+                'amount = (fPosition.y - map1HeightRange) / map1HeightRange;',
+                'texel = mix(texture2D(map1, vUv), texture2D(map2, vUv), amount).rgb;',
+                'texelNormal = mix(texture2D(map1Normal, vUv), texture2D(map2Normal, vUv), amount).rgb;',
+                '}',
+                'else if(fPosition.y < map3HeightRange){',
+                'float hStep = map3HeightRange - map2HeightRange;',
+                'amount = (fPosition.y - hStep) / hStep;',
+                'texel = mix(texture2D(map2, vUv), texture2D(map3, vUv), amount).rgb;',
+                'texelNormal = mix(texture2D(map2Normal, vUv), texture2D(map3Normal, vUv), amount).rgb;',
+                '} else {',
+                'texel = texture2D(map3, vUv).rgb;',
+                'texelNormal = texture2D(map3Normal, vUv).rgb;',
+                '}',
+
+                'vec4 texelColor = vec4( texel, 1.0 );',
+                'texelColor = mapTexelToLinear( texelColor );',
+
+                'diffuseColor *= texelColor;',
+
+                THREE.ShaderChunk.specularmap_fragment,
+                'vec3 normal = normalize( vNormal );',
+                'normal = perturbNormal2Arb( texelNormal.rgb, -vViewPosition, normal );',
+
+                THREE.ShaderChunk.emissivemap_fragment,
+                THREE.ShaderChunk.lights_phong_fragment,
+                THREE.ShaderChunk.lights_template,
+                'vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + reflectedLight.directSpecular + reflectedLight.indirectSpecular + totalEmissiveRadiance;',
+                'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
+                THREE.ShaderChunk.tonemapping_fragment,
+                THREE.ShaderChunk.encodings_fragment,
+                THREE.ShaderChunk.fog_fragment,
+                THREE.ShaderChunk.premultiplied_alpha_fragment,
+                THREE.ShaderChunk.dithering_fragment,
+                '}'
+            ].join('\n')
+        });
+
+        this.defaultAttributeValues = null;
+
+        this.fog = true;
+        this.lights = true;
+
+        this.extensions.derivatives = true;
+        this.extensions.shaderTextureLOD = true;
+    }
+
+    public setOffsetRepeat(ofX: number, ofY: number, rpX: number, rpY: number): void {
+        this.uniforms['offsetRepeat'].value.set(ofX, ofY, rpX, rpY);
+        this.setRepeat(this.uniforms['map1'].value, this.uniforms['map1Normal'].value);
+        this.setRepeat(this.uniforms['map2'].value, this.uniforms['map2Normal'].value);
+        this.setRepeat(this.uniforms['map3'].value, this.uniforms['map3Normal'].value);
+        this.needsUpdate = true;
+    }
+
+    private setRepeat(map: THREE.Texture, normal: THREE.Texture): void {
+        let v4: THREE.Vector4 = this.uniforms['offsetRepeat'].value;
+        if (v4.y !== 1 || v4.z !== 1) {
+            if (map) {
+                map.wrapS = map.wrapT = THREE.RepeatWrapping;
+            }
+            if (normal) {
+                normal.wrapS = normal.wrapT = THREE.RepeatWrapping;
+            }
+        }
+    }
+
+    public setMap1(map: THREE.Texture, normal: THREE.Texture, heightRange: number) {
+        this.setRepeat(map, normal);
+        this.uniforms['map1'].value = map;
+        this.uniforms['map1Normal'].value = normal;
+        this.uniforms['map1HeightRange'].value = heightRange;
+        this.needsUpdate = true;
+    }
+
+    public setMap2(map: THREE.Texture, normal: THREE.Texture, heightRange: number) {
+        this.setRepeat(map, normal);
+        this.uniforms['map2'].value = map;
+        this.uniforms['map2Normal'].value = normal;
+        this.uniforms['map2HeightRange'].value = heightRange;
+        this.needsUpdate = true;
+    }
+
+    public setMap3(map: THREE.Texture, normal: THREE.Texture, heightRange: number) {
+        this.setRepeat(map, normal);
+        this.uniforms['map3'].value = map;
+        this.uniforms['map3Normal'].value = normal;
+        this.uniforms['map3HeightRange'].value = heightRange;
+        this.needsUpdate = true;
+    }
+}
